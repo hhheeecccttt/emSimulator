@@ -5,15 +5,19 @@ import { world } from '../WorldState.js';
 const SUBSTEPS = 8;
 const SOFTENING = 0.5;
 const K = 20;
+const MAX_TRAIL_POINTS = 2000;
 
 export class DynamicCharge extends SimObject {
     constructor(position) {
         super();
         this.velocity = new THREE.Vector3();
-        this.acceleration = new THREE.Vector3();
+        this.accel = new THREE.Vector3();
+        this.avgAccel = new THREE.Vector3();
+        this.tempDir = new THREE.Vector3();
         this.forceArrow = null;
-        this.trail = [];
+        this.trailData = [];
         this.trailLine = null;
+        this.trailPosAttr = null;
         if (position) this.mesh.position.copy(position);
     }
 
@@ -44,43 +48,43 @@ export class DynamicCharge extends SimObject {
 
     update(dt) {
         const subDt = dt / SUBSTEPS;
-        const avgAccel = new THREE.Vector3();
+        this.avgAccel.set(0, 0, 0);
 
         for (let step = 0; step < SUBSTEPS; step++) {
-            this.acceleration.set(0, 0, 0);
+            this.accel.set(0, 0, 0);
 
             for (const other of world.objects) {
                 if (other === this) continue;
                 const ct = other.constructor.chargeType;
-                if (ct !== 'positive' && ct !== 'negative') continue;
+                if (!ct) continue;
 
-                const dir = new THREE.Vector3().subVectors(this.position, other.position);
-                const distSq = dir.lengthSq() + SOFTENING * SOFTENING;
+                this.tempDir.subVectors(this.position, other.position);
+                const distSq = this.tempDir.lengthSq() + SOFTENING * SOFTENING;
 
                 const sign = this.getSign(ct);
                 const forceMag = sign * K / distSq;
 
-                dir.normalize().multiplyScalar(forceMag);
-                this.acceleration.add(dir);
+                this.tempDir.normalize().multiplyScalar(forceMag);
+                this.accel.add(this.tempDir);
             }
 
-            avgAccel.add(this.acceleration);
-            this.velocity.addScaledVector(this.acceleration, subDt);
+            this.avgAccel.add(this.accel);
+            this.velocity.addScaledVector(this.accel, subDt);
             this.position.addScaledVector(this.velocity, subDt);
         }
 
-        this.updateForceArrow(avgAccel);
+        this.updateForceArrow();
         this.updateTrail();
     }
 
-    updateForceArrow(totalAccel) {
-        const avg = totalAccel.clone().divideScalar(SUBSTEPS);
-        const len = avg.length();
+    updateForceArrow() {
         if (!this.forceArrow) return;
+        this.avgAccel.divideScalar(SUBSTEPS);
+        const len = this.avgAccel.length();
 
         if (len > 0.01) {
             this.forceArrow.position.copy(this.position);
-            this.forceArrow.setDirection(avg.normalize());
+            this.forceArrow.setDirection(this.avgAccel.normalize());
             this.forceArrow.setLength(Math.min(len * 3, 6), 0.5, 0.3);
             this.forceArrow.visible = true;
         } else {
@@ -92,31 +96,35 @@ export class DynamicCharge extends SimObject {
         if (!this.trailLine) return;
 
         const now = performance.now();
-        this.trail.push({ pos: this.position.clone(), time: now });
+        this.trailData.push({ x: this.position.x, y: this.position.y, z: this.position.z, time: now });
         const cutoff = now - 10000;
 
-        while (this.trail.length > 0 && this.trail[0].time < cutoff) {
-            this.trail.shift();
+        while (this.trailData.length > 0 && this.trailData[0].time < cutoff) {
+            this.trailData.shift();
         }
 
-        if (this.trail.length < 2) {
+        const count = this.trailData.length;
+        if (count < 2) {
             this.trailLine.visible = false;
             return;
         }
 
         this.trailLine.visible = true;
-        const count = this.trail.length;
-        const positions = new Float32Array(count * 3);
 
-        for (let i = 0; i < count; i++) {
-            const p = this.trail[i].pos;
-            positions[i * 3] = p.x;
-            positions[i * 3 + 1] = p.y;
-            positions[i * 3 + 2] = p.z;
+        if (!this.trailPosAttr) {
+            this.trailPosAttr = new THREE.Float32BufferAttribute(new Float32Array(MAX_TRAIL_POINTS * 3), 3);
+            this.trailLine.geometry.setAttribute('position', this.trailPosAttr);
         }
 
-        this.trailLine.geometry.dispose();
-        this.trailLine.geometry = new THREE.BufferGeometry();
-        this.trailLine.geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        const arr = this.trailPosAttr.array;
+        for (let i = 0; i < count; i++) {
+            const p = this.trailData[i];
+            arr[i * 3] = p.x;
+            arr[i * 3 + 1] = p.y;
+            arr[i * 3 + 2] = p.z;
+        }
+
+        this.trailPosAttr.needsUpdate = true;
+        this.trailLine.geometry.setDrawRange(0, count);
     }
 }

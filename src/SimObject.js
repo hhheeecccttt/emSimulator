@@ -43,12 +43,14 @@ export class SimObject {
     static createGhost() {
         if (this._loadedScene) {
             const ghost = this._loadedScene.clone(true);
+            ghost.renderOrder = 999;
             ghost.traverse(child => {
                 if (child.isMesh) {
                     child.material = child.material.clone();
                     child.material.transparent = true;
                     child.material.opacity = 0.75;
                     child.material.depthWrite = false;
+                    child.renderOrder = 999;
                 }
             });
             ghost.userData.typeId = this.id;
@@ -63,6 +65,7 @@ export class SimObject {
             depthWrite: false
         });
         const mesh = new THREE.Mesh(geo, mat);
+        mesh.renderOrder = 999;
         mesh.userData.typeId = this.id;
         return mesh;
     }

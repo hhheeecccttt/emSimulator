@@ -10,14 +10,17 @@ const MIN_LEN = 0.5;
 export class ElectricField {
     constructor(scene) {
         this.arrows = [];
+        this.enabled = true;
+        this.tempDir = new THREE.Vector3();
+        this.field = new THREE.Vector3();
         const planeGeo = new THREE.PlaneGeometry(HALF_SPAN * 2, HALF_SPAN * 2);
         const planeMat = new THREE.MeshBasicMaterial({
             color: 0x333333, transparent: true, opacity: 0.25, side: THREE.DoubleSide, depthWrite: false
         });
-        const plane = new THREE.Mesh(planeGeo, planeMat);
-        plane.rotation.x = -Math.PI / 2;
-        plane.position.set(0, GRID_Y - 0.01, 0);
-        scene.add(plane);
+        this.plane = new THREE.Mesh(planeGeo, planeMat);
+        this.plane.rotation.x = -Math.PI / 2;
+        this.plane.position.set(0, GRID_Y - 0.01, 0);
+        scene.add(this.plane);
         this.buildGrid(scene);
     }
 
@@ -41,33 +44,48 @@ export class ElectricField {
     }
 
     update() {
+        if (!this.enabled) {
+            for (const arrow of this.arrows) arrow.visible = false;
+            return;
+        }
+
         for (const arrow of this.arrows) {
             const origin = arrow.position;
-            const field = new THREE.Vector3();
+            this.field.set(0, 0, 0);
 
             for (const obj of world.objects) {
                 if (!obj.constructor.isStatic) continue;
 
-                const dir = new THREE.Vector3().subVectors(origin, obj.position);
-                dir.y = 0;
-                const distSq = dir.lengthSq();
+                this.tempDir.subVectors(origin, obj.position);
+                this.tempDir.y = 0;
+                const distSq = this.tempDir.lengthSq();
                 if (distSq < 0.01) continue;
 
                 const sign = obj.constructor.chargeType === 'positive' ? 1 : -1;
-                dir.normalize().multiplyScalar(sign / distSq);
-                field.add(dir);
+                this.tempDir.normalize().multiplyScalar(sign / distSq);
+                this.field.add(this.tempDir);
             }
 
-            const len = field.length() * 2;
+            const len = this.field.length() * 2;
             if (len < 0.001) {
                 arrow.visible = false;
                 continue;
             }
 
             arrow.visible = true;
-            field.normalize();
-            arrow.setDirection(field);
+            this.field.normalize();
+            arrow.setDirection(this.field);
             arrow.setLength(0.8, 0.3, 0.2);
+        }
+    }
+
+    setVisible(v) {
+        this.enabled = v;
+        this.plane.visible = v;
+        if (v) {
+            this.update();
+        } else {
+            for (const arrow of this.arrows) arrow.visible = false;
         }
     }
 

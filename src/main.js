@@ -14,6 +14,7 @@ import { loadAllModels } from './ObjectRegistry.js';
 import { world } from './WorldState.js';
 import { ElectricField } from './electricField.js';
 import { ElectricPotential } from './electricPotential.js';
+import { DynamicCharge } from './objects/DynamicCharge.js';
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x20232a);
@@ -39,6 +40,7 @@ const placedObjects = [];
 world.objects = placedObjects;
 
 initGhostSystem(scene, camera);
+const chargeMeterFill = document.getElementById('chargeMeterFill');
 initContextMenu(controls, (typeId) => {
     startPlacement(typeId);
 }, (obj) => {
@@ -59,6 +61,16 @@ document.addEventListener('keydown', e => {
     if (e.code === 'KeyD') move.right = true;
     if (e.code === 'Space') move.up = true;
     if (e.code === 'ShiftLeft') move.down = true;
+
+    if (e.code === 'Digit1') {
+        state.charges = !state.charges;
+        for (const obj of placedObjects) {
+            if (obj instanceof DynamicCharge) obj.active = state.charges;
+        }
+    } else if (e.code === 'Digit2') state.vectors = !state.vectors;
+    else if (e.code === 'Digit3') fieldViz.setVisible(!fieldViz.enabled);
+    else if (e.code === 'Digit4') potentialViz.setVisible(!potentialViz.surface.visible);
+    else if (e.code === 'Digit5') potentialViz.setContoursVisible(!potentialViz.contours.visible);
 });
 
 document.addEventListener('keyup', e => {
@@ -81,7 +93,10 @@ scene.add(axesHelper);
 const fieldViz = new ElectricField(scene);
 const potentialViz = new ElectricPotential(scene);
 
+const state = { charges: true, vectors: true };
+
 let lastTime = performance.now();
+const cameraVelocity = new THREE.Vector3();
 
 function animate() {
     requestAnimationFrame(animate);
@@ -90,28 +105,31 @@ function animate() {
     const dt = (now - lastTime) / 1000;
     lastTime = now;
 
-    const velocity = new THREE.Vector3();
-    if (move.forward) velocity.z += speed;
-    if (move.backward) velocity.z -= speed;
-    if (move.left) velocity.x -= speed;
-    if (move.right) velocity.x += speed;
-    if (move.up) velocity.y += speed;
-    if (move.down) velocity.y -= speed;
+    cameraVelocity.set(0, 0, 0);
+    if (move.forward) cameraVelocity.z += speed;
+    if (move.backward) cameraVelocity.z -= speed;
+    if (move.left) cameraVelocity.x -= speed;
+    if (move.right) cameraVelocity.x += speed;
+    if (move.up) cameraVelocity.y += speed;
+    if (move.down) cameraVelocity.y -= speed;
 
-    controls.moveRight(velocity.x);
-    controls.moveForward(velocity.z);
-    camera.position.y += velocity.y;
+    controls.moveRight(cameraVelocity.x);
+    controls.moveForward(cameraVelocity.z);
+    camera.position.y += cameraVelocity.y;
 
     if (isPlacing() && !isCharging() && !isHolding()) updateGhostPosition();
 
     tickCharge();
 
     if (isCharging()) {
-        document.getElementById('chargeMeterFill').style.width = (getChargeLevel() * 100) + '%';
+        chargeMeterFill.style.width = (getChargeLevel() * 100) + '%';
     }
 
     for (const obj of placedObjects) {
         if (obj.active) obj.update(dt);
+        if (obj instanceof DynamicCharge && obj.forceArrow) {
+            obj.forceArrow.visible = state.vectors && obj.forceArrow.visible;
+        }
     }
 
     renderer.render(scene, camera);
