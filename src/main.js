@@ -13,6 +13,7 @@ import { initContextMenu } from './ContextMenu.js';
 import { loadAllModels } from './ObjectRegistry.js';
 import { world } from './WorldState.js';
 import { ElectricField } from './electricField.js';
+import { ElectricPotential } from './electricPotential.js';
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x20232a);
@@ -24,9 +25,12 @@ const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
-const directionalLight = new THREE.DirectionalLight(0xffffff, 2);
-directionalLight.position.set(5, 10, 7);
-scene.add(directionalLight);
+const directionalLight1 = new THREE.DirectionalLight(0xffffff, 2);
+const directionalLight2 = new THREE.DirectionalLight(0xffffff, 2);
+directionalLight1.position.set(5, 10, 7);
+directionalLight2.position.set(-5, 10, -7);
+scene.add(directionalLight1);
+scene.add(directionalLight2);
 scene.add(new THREE.AmbientLight(0x404040));
 
 const controls = new PointerLockControls(camera, renderer.domElement);
@@ -40,6 +44,8 @@ initContextMenu(controls, (typeId) => {
 }, (obj) => {
     obj.init(scene);
     placedObjects.push(obj);
+    fieldViz.update();
+    potentialViz.update();
 });
 
 const move = { forward: false, backward: false, left: false, right: false, up: false, down: false };
@@ -64,18 +70,6 @@ document.addEventListener('keyup', e => {
     if (e.code === 'ShiftLeft') move.down = false;
 });
 
-const groundGeo = new THREE.PlaneGeometry(100, 100);
-const groundMat = new THREE.MeshPhongMaterial({ color: 0x808080 });
-const ground = new THREE.Mesh(groundGeo, groundMat);
-ground.rotation.x = -Math.PI / 2;
-scene.add(ground);
-
-const cubeGeo = new THREE.BoxGeometry();
-const cubeMat = new THREE.MeshPhongMaterial({ color: 0xff0000 });
-const cube = new THREE.Mesh(cubeGeo, cubeMat);
-cube.position.set(0, 1, -5);
-scene.add(cube);
-
 const dir = new THREE.Vector3(1, 0, 0);
 const origin = new THREE.Vector3(0, 1, 0);
 const arrow = new THREE.ArrowHelper(dir, origin, 2, 0xffff00);
@@ -85,6 +79,7 @@ const axesHelper = new THREE.AxesHelper(5);
 scene.add(axesHelper);
 
 const fieldViz = new ElectricField(scene);
+const potentialViz = new ElectricPotential(scene);
 
 let lastTime = performance.now();
 
@@ -101,7 +96,7 @@ function animate() {
     if (move.left) velocity.x -= speed;
     if (move.right) velocity.x += speed;
     if (move.up) velocity.y += speed;
-    if (move.down && camera.position.y > 0.5) velocity.y -= speed;
+    if (move.down) velocity.y -= speed;
 
     controls.moveRight(velocity.x);
     controls.moveForward(velocity.z);
@@ -118,8 +113,6 @@ function animate() {
     for (const obj of placedObjects) {
         if (obj.active) obj.update(dt);
     }
-
-    fieldViz.update();
 
     renderer.render(scene, camera);
 }

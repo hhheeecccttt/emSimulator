@@ -67,7 +67,7 @@ export class ElectricField {
             arrow.visible = true;
             field.normalize();
             arrow.setDirection(field);
-            arrow.setLength(Math.max(Math.min(len, MAX_LEN), MIN_LEN), 0.3, 0.15);
+            arrow.setLength(0.8, 0.3, 0.2);
         }
     }
 

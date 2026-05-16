@@ -47,7 +47,7 @@ export class SimObject {
                 if (child.isMesh) {
                     child.material = child.material.clone();
                     child.material.transparent = true;
-                    child.material.opacity = 0.4;
+                    child.material.opacity = 0.75;
                     child.material.depthWrite = false;
                 }
             });
