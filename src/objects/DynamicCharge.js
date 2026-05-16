@@ -2,9 +2,9 @@ import * as THREE from 'three';
 import { SimObject } from '../SimObject.js';
 import { world } from '../WorldState.js';
 
-const SUBSTEPS = 10;
+const SUBSTEPS = 8;
 const SOFTENING = 0.5;
-const K = 4;
+const K = 20;
 
 export class DynamicCharge extends SimObject {
     constructor(position) {

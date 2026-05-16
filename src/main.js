@@ -12,6 +12,7 @@ import { initGhostSystem, startPlacement, updateGhostPosition, isPlacing, cancel
 import { initContextMenu } from './ContextMenu.js';
 import { loadAllModels } from './ObjectRegistry.js';
 import { world } from './WorldState.js';
+import { ElectricField } from './electricField.js';
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x20232a);
@@ -83,6 +84,8 @@ scene.add(arrow);
 const axesHelper = new THREE.AxesHelper(5);
 scene.add(axesHelper);
 
+const fieldViz = new ElectricField(scene);
+
 let lastTime = performance.now();
 
 function animate() {
@@ -115,6 +118,8 @@ function animate() {
     for (const obj of placedObjects) {
         if (obj.active) obj.update(dt);
     }
+
+    fieldViz.update();
 
     renderer.render(scene, camera);
 }
