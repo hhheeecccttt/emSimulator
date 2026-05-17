@@ -4,8 +4,6 @@ import { world } from './WorldState.js';
 const GRID_SIZE = 30;
 const HALF_SPAN = 15;
 const GRID_Y = 0.5;
-const MAX_LEN = 1;
-const MIN_LEN = 0.5;
 
 export class ElectricField {
     constructor(scene) {

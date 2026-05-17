@@ -6,6 +6,7 @@ const SUBSTEPS = 8;
 const SOFTENING = 0.5;
 const K = 20;
 const MAX_TRAIL_POINTS = 2000;
+const TRAIL_DURATION = 10000;
 
 export class DynamicCharge extends SimObject {
     constructor(position) {
@@ -42,10 +43,6 @@ export class DynamicCharge extends SimObject {
         super.destroy(scene);
     }
 
-    getSign(otherChargeType) {
-        return 1;
-    }
-
     update(dt) {
         const subDt = dt / SUBSTEPS;
         this.avgAccel.set(0, 0, 0);
@@ -61,8 +58,8 @@ export class DynamicCharge extends SimObject {
                 this.tempDir.subVectors(this.position, other.position);
                 const distSq = this.tempDir.lengthSq() + SOFTENING * SOFTENING;
 
-                const sign = this.getSign(ct);
-                const forceMag = sign * K / distSq;
+                const sameType = this.constructor.chargeType === ct;
+                const forceMag = (sameType ? 1 : -1) * K / distSq;
 
                 this.tempDir.normalize().multiplyScalar(forceMag);
                 this.accel.add(this.tempDir);
@@ -97,7 +94,7 @@ export class DynamicCharge extends SimObject {
 
         const now = performance.now();
         this.trailData.push({ x: this.position.x, y: this.position.y, z: this.position.z, time: now });
-        const cutoff = now - 10000;
+        const cutoff = now - TRAIL_DURATION;
 
         while (this.trailData.length > 0 && this.trailData[0].time < cutoff) {
             this.trailData.shift();

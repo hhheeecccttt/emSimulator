@@ -2,17 +2,16 @@ import * as THREE from 'three';
 import { PLACEMENT_DISTANCE } from './constants.js';
 import { getType } from './ObjectRegistry.js';
 
-let placementGhost = null;
-let scene = null;
-let camera = null;
-
-let holdStartTime = 0;
-let _isHolding = false;
-let chargeStartTime = 0;
-let _isCharging = false;
+const State = { IDLE: 0, HOLDING: 1, CHARGING: 2 };
 const HOLD_DELAY = 0.1;
 const MAX_CHARGE_TIME = 2;
 const MAX_LAUNCH_SPEED = 5;
+
+let placementGhost = null;
+let scene = null;
+let camera = null;
+let state = State.IDLE;
+let phaseStartTime = 0;
 
 const meterEl = document.getElementById('chargeMeter');
 const labelEl = document.getElementById('chargeLabel');
@@ -54,9 +53,15 @@ function confirmPlacement() {
     return obj;
 }
 
+function placeWithVelocity(velocity) {
+    const obj = confirmPlacement();
+    if (obj) obj.velocity.copy(velocity);
+    hideMeter();
+    return obj;
+}
+
 export function cancelPlacement() {
-    _isHolding = false;
-    _isCharging = false;
+    state = State.IDLE;
     hideMeter();
     if (!placementGhost || !scene) return;
     scene.remove(placementGhost);
@@ -67,61 +72,51 @@ export function isPlacing() {
     return placementGhost !== null;
 }
 
-export function isHolding() {
-    return _isHolding;
+export function isCharging() {
+    return state === State.CHARGING;
 }
 
-export function startCharging() {
+export function isHolding() {
+    return state === State.HOLDING;
+}
+
+export function getChargeLevel() {
+    if (state !== State.CHARGING) return 0;
+    return Math.min((performance.now() - phaseStartTime) / (MAX_CHARGE_TIME * 1000), 1);
+}
+
+export function onPlacementClick() {
     if (!placementGhost) return null;
     const Cls = getType(placementGhost.userData.typeId);
     if (Cls?.isStatic) {
         return confirmPlacement();
     }
-    _isHolding = true;
-    holdStartTime = performance.now();
+    state = State.HOLDING;
+    phaseStartTime = performance.now();
     return null;
 }
 
 export function tickCharge() {
-    if (!_isHolding || _isCharging) return;
-    if ((performance.now() - holdStartTime) / 1000 < HOLD_DELAY) return;
-    _isCharging = true;
-    chargeStartTime = performance.now();
+    if (state !== State.HOLDING) return;
+    if ((performance.now() - phaseStartTime) / 1000 < HOLD_DELAY) return;
+    state = State.CHARGING;
+    phaseStartTime = performance.now();
     showMeter();
 }
 
-export function getChargeLevel() {
-    if (!_isCharging) return 0;
-    return Math.min((performance.now() - chargeStartTime) / (MAX_CHARGE_TIME * 1000), 1);
-}
+export function onPlacementRelease() {
+    if (state === State.IDLE || !placementGhost) return null;
 
-function placeWithVelocity(velocity) {
-    const obj = confirmPlacement();
-    if (obj) obj.velocity.copy(velocity);
-    hideMeter();
-    return obj;
-}
-
-export function releaseCharge() {
-    if (!_isHolding || !placementGhost) return null;
-
-    if (!_isCharging) {
-        _isHolding = false;
+    if (state === State.HOLDING) {
+        state = State.IDLE;
         return placeWithVelocity(new THREE.Vector3(0, 0, 0));
     }
 
-    const elapsed = (performance.now() - chargeStartTime) / (MAX_CHARGE_TIME * 1000);
-    const charge = Math.min(elapsed, 1);
-    const speed = charge * MAX_LAUNCH_SPEED;
-    _isHolding = false;
-    _isCharging = false;
+    const elapsed = (performance.now() - phaseStartTime) / (MAX_CHARGE_TIME * 1000);
+    const speed = Math.min(elapsed, 1) * MAX_LAUNCH_SPEED;
+    state = State.IDLE;
 
     const dir = new THREE.Vector3();
     camera.getWorldDirection(dir);
-
     return placeWithVelocity(dir.multiplyScalar(speed));
-}
-
-export function isCharging() {
-    return _isCharging;
 }

@@ -10,7 +10,6 @@ export class Cube extends SimObject {
 
     constructor(position) {
         super();
-        //Custom Variables Here
         this.mesh = new THREE.Mesh(
             new THREE.BoxGeometry(1, 1, 1),
             new THREE.MeshPhongMaterial({ color: 0xff0000 })

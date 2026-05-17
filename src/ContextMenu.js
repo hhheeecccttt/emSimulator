@@ -1,5 +1,5 @@
 import { getAllTypes } from './ObjectRegistry.js';
-import { cancelPlacement, isPlacing, startCharging, releaseCharge } from './PlacementGhost.js';
+import { isPlacing, onPlacementClick, onPlacementRelease } from './PlacementGhost.js';
 
 let ctxMenu = null;
 let controls = null;
@@ -76,14 +76,14 @@ function setupEventListeners() {
     document.addEventListener('mousedown', e => {
         if (e.button !== 0) return;
         if (isPlacing()) {
-            const obj = startCharging();
+            const obj = onPlacementClick();
             if (obj && onObjectPlaced) onObjectPlaced(obj);
         }
     });
 
     document.addEventListener('mouseup', e => {
         if (e.button !== 0) return;
-        const obj = releaseCharge();
+        const obj = onPlacementRelease();
         if (obj && onObjectPlaced) onObjectPlaced(obj);
     });
 

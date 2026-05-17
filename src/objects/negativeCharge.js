@@ -8,9 +8,5 @@ export class negativeCharge extends DynamicCharge {
     static modelUrl = './src/models/negativeCharge.glb';
     static chargeType = 'negative';
     static scale = 0.5;
-
-    getSign(otherChargeType) {
-        return otherChargeType === 'positive' ? -1 : 1;
-    }
 }
 registerType(negativeCharge);

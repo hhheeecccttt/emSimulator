@@ -10,7 +10,6 @@ export class Cylinder extends SimObject {
 
     constructor(position) {
         super();
-        //Custom Variables Here
         this.mesh = new THREE.Mesh(
             new THREE.CylinderGeometry(0.5, 0.5, 1, 24),
             new THREE.MeshPhongMaterial({ color: 0x0088ff })

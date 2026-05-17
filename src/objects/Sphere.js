@@ -10,7 +10,6 @@ export class Sphere extends SimObject {
 
     constructor(position) {
         super();
-        //Custom Variables Here
         this.mesh = new THREE.Mesh(
             new THREE.SphereGeometry(0.6, 24, 24),
             new THREE.MeshPhongMaterial({ color: 0x00ff00 })
