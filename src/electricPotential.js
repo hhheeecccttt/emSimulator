@@ -22,7 +22,7 @@ export class ElectricPotential {
 
     const surfaceMat = new THREE.MeshStandardMaterial({
       vertexColors: true,
-      //side: THREE.DoubleSide,
+      side: THREE.DoubleSide,
       transparent: true,
       opacity: 0.6,
       depthWrite: false,
@@ -118,6 +118,8 @@ export class ElectricPotential {
 
       for (const obj of world.objects) {
         if (!obj.constructor.isStatic) continue;
+        const ct = obj.constructor.chargeType;
+        if (!ct) continue;
         const dx = vx - obj.position.x;
         const dz = vz - obj.position.z;
         const distSq = dx * dx + dz * dz;

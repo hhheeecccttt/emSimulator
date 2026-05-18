@@ -9,6 +9,8 @@ import "./objects/negativeCharge.js";
 import "./objects/staticPositiveCharge.js";
 import "./objects/staticNegativeCharge.js";
 import "./objects/MagneticBox.js";
+import "./objects/FieldProbe.js";
+import "./objects/CurrentWire.js";
 import {
   initGhostSystem,
   startPlacement,
@@ -27,7 +29,14 @@ import { ElectricField } from "./electricField.js";
 import { ElectricPotential } from "./electricPotential.js";
 import { DynamicCharge } from "./objects/DynamicCharge.js";
 import { MagneticBox } from "./objects/MagneticBox.js";
+import { CurrentWire } from "./objects/CurrentWire.js";
 import { PLACEMENT_DISTANCE } from "./constants.js";
+import {
+  getChargeSI,
+  fmtSI,
+  fmtVector,
+  fmtDir,
+} from "./physics/units.js";
 
 // Scene, camera, renderer — standard three.js setup
 const scene = new THREE.Scene();
@@ -40,6 +49,7 @@ const camera = new THREE.PerspectiveCamera(
   1000,
 );
 camera.position.set(0, 2, 5);
+world.camera = camera;
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -66,10 +76,10 @@ world.objects = placedObjects;
 initGhostSystem(scene, camera);
 const chargeMeterFill = document.getElementById("chargeMeterFill");
 
-// Box placement mode state — click corner1, drag to corner2, release
-let boxPlacementMode = false;
-let boxCorner1 = null;
-let boxPreview = null;
+// Drag-to-place modes — click corner1, drag to corner2, release
+let dragMode = null; // null, "magneticBox", "currentWire"
+let dragCorner1 = null;
+let dragPreview = null;
 let groundDot = null;
 let guideLine = null;
 const boxPreviewMat = new THREE.MeshPhongMaterial({
@@ -95,28 +105,36 @@ function getPlacementPoint() {
 }
 
 function updateGroundDot() {
-  if (!boxPlacementMode) {
+  if (!dragMode) {
     clearGroundDot();
     return;
   }
   const p = getPlacementPoint();
   if (!groundDot) {
-    // Small green sphere — shows where the next corner will go
     const dotGeo = new THREE.SphereGeometry(0.08, 8, 8);
     const dotMat = new THREE.MeshBasicMaterial({ color: 0x44ff88 });
     groundDot = new THREE.Mesh(dotGeo, dotMat);
     scene.add(groundDot);
   }
-  if (boxCorner1) {
-    groundDot.position.copy(boxCorner1);
+  if (dragCorner1) {
+    groundDot.position.copy(dragCorner1);
   } else {
     groundDot.position.copy(p);
   }
 }
 
-// Axis-aligned bounding box preview from two 3D corners
+function clearPreview() {
+  if (dragPreview) {
+    scene.remove(dragPreview);
+    dragPreview.traverse((child) => {
+      if (child.geometry) child.geometry.dispose();
+    });
+    dragPreview = null;
+  }
+}
+
 function buildBoxPreview(corner1, corner2) {
-  clearBoxPreview();
+  clearPreview();
   if (!corner1 || !corner2) return;
   const x1 = Math.min(corner1.x, corner2.x);
   const x2 = Math.max(corner1.x, corner2.x);
@@ -130,29 +148,46 @@ function buildBoxPreview(corner1, corner2) {
   if (w < 0.01 || h < 0.01 || d < 0.01) return;
 
   const center = new THREE.Vector3((x1 + x2) / 2, (y1 + y2) / 2, (z1 + z2) / 2);
-  boxPreview = new THREE.Group();
-  boxPreview.position.copy(center);
+  dragPreview = new THREE.Group();
+  dragPreview.position.copy(center);
 
   const geo = new THREE.BoxGeometry(w, h, d);
   const mesh = new THREE.Mesh(geo, boxPreviewMat);
-  boxPreview.add(mesh);
+  dragPreview.add(mesh);
 
   const edges = new THREE.EdgesGeometry(geo);
   const wire = new THREE.LineSegments(edges, boxPreviewWireMat);
-  boxPreview.add(wire);
+  dragPreview.add(wire);
 
-  scene.add(boxPreview);
+  scene.add(dragPreview);
 }
 
-function clearBoxPreview() {
-  if (boxPreview) {
-    scene.remove(boxPreview);
-    // Clean up geometries so we don't leak memory each rebuild
-    boxPreview.traverse((child) => {
-      if (child.geometry) child.geometry.dispose();
-    });
-    boxPreview = null;
-  }
+function buildWirePreview(corner1, corner2) {
+  clearPreview();
+  if (!corner1 || !corner2) return;
+  const dir = new THREE.Vector3().subVectors(corner2, corner1);
+  const len = dir.length();
+  if (len < 0.05) return;
+  const mid = new THREE.Vector3().addVectors(corner1, corner2).multiplyScalar(0.5);
+
+  dragPreview = new THREE.Group();
+  dragPreview.position.copy(mid);
+
+  const cylGeo = new THREE.CylinderGeometry(0.06, 0.06, len, 8);
+  const cylMat = new THREE.MeshPhongMaterial({
+    color: 0xcc8844,
+    transparent: true,
+    opacity: 0.3,
+    depthWrite: false,
+  });
+  const mesh = new THREE.Mesh(cylGeo, cylMat);
+  // Orient cylinder along the direction
+  const up = new THREE.Vector3(0, 1, 0);
+  const quat = new THREE.Quaternion().setFromUnitVectors(up, dir.clone().normalize());
+  mesh.quaternion.copy(quat);
+  dragPreview.add(mesh);
+
+  scene.add(dragPreview);
 }
 
 function clearGroundDot() {
@@ -167,61 +202,87 @@ function clearGroundDot() {
 }
 
 function updateGuideLine() {
-  const active = boxPlacementMode || isPlacing();
+  const active = dragMode || isPlacing();
   if (!active) {
-    if (guideLine) { scene.remove(guideLine); guideLine = null; }
+    if (guideLine) {
+      scene.remove(guideLine);
+      guideLine = null;
+    }
     return;
   }
-  // Vertical line from placement point down to ground
   let top;
-  if (boxPlacementMode) {
-    if (boxCorner1) top = boxCorner1;
+  if (dragMode) {
+    if (dragCorner1) top = dragCorner1;
     else top = getPlacementPoint();
   } else if (isPlacing()) {
     top = getPlacementPoint();
   } else {
-    if (guideLine) { scene.remove(guideLine); guideLine = null; }
+    if (guideLine) {
+      scene.remove(guideLine);
+      guideLine = null;
+    }
     return;
   }
   if (!guideLine) {
     const geo = new THREE.BufferGeometry();
     const positions = new Float32Array(6);
-    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    const mat = new THREE.LineBasicMaterial({ color: 0x4488ff, transparent: true, opacity: 0.3 });
+    geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    const mat = new THREE.LineBasicMaterial({
+      color: 0x4488ff,
+      transparent: true,
+      opacity: 0.3,
+    });
     guideLine = new THREE.Line(geo, mat);
     scene.add(guideLine);
   }
   const pos = guideLine.geometry.attributes.position.array;
-  pos[0] = top.x; pos[1] = top.y; pos[2] = top.z;
-  pos[3] = top.x; pos[4] = 0;     pos[5] = top.z;
+  pos[0] = top.x;
+  pos[1] = top.y;
+  pos[2] = top.z;
+  pos[3] = top.x;
+  pos[4] = 0;
+  pos[5] = top.z;
   guideLine.geometry.attributes.position.needsUpdate = true;
 }
 
-// Build the actual box and push it into the scene
 function confirmBoxPlacement(corner1, corner2) {
   if (!corner1 || !corner2) return;
   const box = new MagneticBox(corner1, corner2);
   box.init(scene);
   placedObjects.push(box);
-  clearBoxPreview();
+  clearPreview();
   clearGroundDot();
-  boxCorner1 = null;
-  boxPlacementMode = false;
+  dragCorner1 = null;
+  dragMode = null;
+  field.update();
+  potential.update();
 }
 
-// Wire up the right-click menu — magnetic boxes go through a special drag-to-place path
+function confirmWirePlacement(corner1, corner2) {
+  if (!corner1 || !corner2) return;
+  const wire = new CurrentWire(corner1, corner2);
+  wire.init(scene);
+  placedObjects.push(wire);
+  clearPreview();
+  clearGroundDot();
+  dragCorner1 = null;
+  dragMode = null;
+  field.update();
+  potential.update();
+}
+
 initContextMenu(
   controls,
   (typeId) => {
-    if (typeId === "magneticBox") {
+    if (typeId === "magneticBox" || typeId === "currentWire") {
       cancelPlacement();
-      boxPlacementMode = true;
-      boxCorner1 = null;
-      clearBoxPreview();
+      dragMode = typeId;
+      dragCorner1 = null;
+      clearPreview();
     } else {
-      boxPlacementMode = false;
-      boxCorner1 = null;
-      clearBoxPreview();
+      dragMode = null;
+      dragCorner1 = null;
+      clearPreview();
       clearGroundDot();
       startPlacement(typeId);
     }
@@ -252,35 +313,37 @@ const toggles = {
 };
 
 document.addEventListener("keydown", (e) => {
-  // Q = cancel current ghost, or grab a hovered object
-  if (e.code === "KeyQ" && isPlacing()) {
-    cancelPlacement();
-    return;
-  }
-  if (e.code === "KeyQ" && !isPlacing() && targetedObject) {
-    const obj = targetedObject;
-    targetedObject = null;
-    obj.destroy(scene);
-    const idx = placedObjects.indexOf(obj);
-    if (idx >= 0) placedObjects.splice(idx, 1);
-    if (obj instanceof MagneticBox) {
-      boxPlacementMode = true;
-      boxCorner1 = null;
-      clearBoxPreview();
-    } else {
-      startPlacement(obj.constructor.id);
+  if (e.code === "KeyQ") {
+    if (dragMode) {
+      dragMode = null;
+      dragCorner1 = null;
+      clearPreview();
+      clearGroundDot();
+      return;
     }
-    field.update();
-    potential.update();
-    return;
-  }
-  // E = bail out of box placement
-  if (e.code === "KeyE" && boxPlacementMode) {
-    boxPlacementMode = false;
-    boxCorner1 = null;
-    clearBoxPreview();
-    clearGroundDot();
-    return;
+    // Cancel current ghost
+    if (isPlacing()) {
+      cancelPlacement();
+      return;
+    }
+    // Grab a hovered object
+    if (targetedObject) {
+      const obj = targetedObject;
+      targetedObject = null;
+      obj.destroy(scene);
+      const idx = placedObjects.indexOf(obj);
+      if (idx >= 0) placedObjects.splice(idx, 1);
+      if (obj instanceof MagneticBox || obj instanceof CurrentWire) {
+        dragMode = obj.constructor.id;
+        dragCorner1 = null;
+        clearPreview();
+      } else {
+        startPlacement(obj.constructor.id);
+      }
+      field.update();
+      potential.update();
+      return;
+    }
   }
   if (e.code === "KeyW") move.forward = true;
   if (e.code === "KeyS") move.backward = true;
@@ -350,49 +413,94 @@ function getTargetInfo() {
   return { meshes, ownerMap };
 }
 
-// Left click = set first corner when placing a box
 document.addEventListener("mousedown", (e) => {
   if (e.button !== 0) return;
-
-  if (boxPlacementMode) {
+  if (dragMode) {
     const p = getPlacementPoint();
-    if (p) {
-      boxCorner1 = p.clone();
-    }
+    if (p) dragCorner1 = p.clone();
     return;
   }
-
   if (isPlacing()) return;
 });
 
-// Release = finalize second corner and place the box
 document.addEventListener("mouseup", (e) => {
   if (e.button !== 0) return;
-  if (boxPlacementMode && boxCorner1) {
+  if (dragMode && dragCorner1) {
     const corner2 = getPlacementPoint();
     if (corner2) {
-      confirmBoxPlacement(boxCorner1, corner2);
+      if (dragMode === "magneticBox") confirmBoxPlacement(dragCorner1, corner2);
+      else if (dragMode === "currentWire") confirmWirePlacement(dragCorner1, corner2);
     } else {
-      boxCorner1 = null;
-      clearBoxPreview();
+      dragCorner1 = null;
+      clearPreview();
       clearGroundDot();
-      boxPlacementMode = false;
+      dragMode = null;
     }
   }
 });
 
-// While dragging in box mode, update the preview box to match
 document.addEventListener("mousemove", () => {
-  if (boxPlacementMode && boxCorner1) {
+  if (dragMode && dragCorner1) {
     const corner2 = getPlacementPoint();
     if (corner2) {
-      buildBoxPreview(boxCorner1, corner2);
+      if (dragMode === "magneticBox") buildBoxPreview(dragCorner1, corner2);
+      else if (dragMode === "currentWire") buildWirePreview(dragCorner1, corner2);
     }
   }
 });
 
 let lastTime = performance.now();
 const cameraVelocity = new THREE.Vector3();
+
+// ── Object info HUD ───────────────────────────────────────────────
+const oiEl = document.getElementById("objectInfo");
+const oiNameEl = document.getElementById("oiName");
+const oiRowsEl = document.getElementById("oiRows");
+
+function updateObjectHUD() {
+  if (!oiEl || !targetedObject) {
+    oiEl.style.display = "none";
+    return;
+  }
+  const obj = targetedObject;
+  oiEl.style.display = "block";
+  oiNameEl.textContent = obj.constructor.label || "Object";
+
+  const rows = [];
+  if (typeof obj.position?.x === "number") {
+    rows.push({
+      label: "Position",
+      val: fmtVector(
+        new THREE.Vector3(obj.position.x, obj.position.y, obj.position.z),
+      ),
+    });
+  }
+  if (obj.constructor.chargeType) {
+    const qSI = getChargeSI(obj);
+    rows.push({ label: "Charge", val: fmtSI(qSI) + " C" });
+  }
+  if (obj instanceof DynamicCharge) {
+    const v = obj.velocity;
+    const speed = v.length();
+    rows.push({ label: "Velocity", val: fmtSI(speed) + " m/s" });
+    rows.push({ label: "Speed", val: fmtVector(v) });
+  }
+  if (obj.fieldStrength != null && obj.fieldDir) {
+    rows.push({ label: "B-field", val: fmtSI(obj.fieldStrength) + " T " + fmtDir(obj.fieldDir) });
+  }
+  if (obj.current) {
+    rows.push({ label: "Current", val: fmtSI(obj.current) + " A" });
+  }
+  if (obj.range) {
+    rows.push({ label: "Range", val: fmtSI(obj.range) + " m" });
+  }
+  oiRowsEl.innerHTML = rows
+    .map(
+      (r) =>
+        `<div class="oi-row"><span class="oi-label">${r.label}</span><span class="oi-value">${r.val}</span></div>`,
+    )
+    .join("");
+}
 
 // Main animation loop — delta time, camera movement, physics, render
 function animate() {
@@ -413,7 +521,7 @@ function animate() {
 
   controls.moveRight(cameraVelocity.x);
   controls.moveForward(cameraVelocity.z);
-  camera.position.y += cameraVelocity.y;
+  camera.position.y = Math.max(1, camera.position.y + cameraVelocity.y);
 
   // Crosshair targeting — only when not placing
   if (!isPlacing()) {
@@ -452,6 +560,8 @@ function animate() {
       }
     }
   }
+
+  updateObjectHUD();
 
   renderer.render(scene, camera);
 }

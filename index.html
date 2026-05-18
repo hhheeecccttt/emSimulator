@@ -128,16 +128,106 @@
         #crosshair.aiming::after {
             display: none;
         }
+
+        #objectInfo {
+            position: absolute;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #eee;
+            font-family: Arial, sans-serif;
+            font-size: 20px;
+            background: rgba(0, 0, 0, 0.75);
+            border: 1px solid #555;
+            border-radius: 6px;
+            padding: 8px 14px;
+            display: none;
+            z-index: 600;
+            min-width: 200px;
+            text-align: center;
+            pointer-events: none;
+            backdrop-filter: blur(4px);
+        }
+        #objectInfo .oi-name {
+            font-weight: bold;
+            color: #fff;
+            font-size: 21px;
+            margin-bottom: 4px;
+        }
+        #objectInfo .oi-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            line-height: 1.6;
+        }
+        #objectInfo .oi-label {
+            color: #888;
+        }
+        #objectInfo .oi-value {
+            color: #8cf;
+            text-align: right;
+        }
+
+        .probe-panel {
+            position: absolute;
+            color: #eee;
+            font-family: Arial, sans-serif;
+            font-size: 18px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid #00ff88;
+            border-radius: 6px;
+            padding: 6px 10px;
+            z-index: 700;
+            pointer-events: none;
+            min-width: 160px;
+            backdrop-filter: blur(4px);
+            box-shadow: 0 0 12px rgba(0, 255, 136, 0.15);
+        }
+        .probe-panel .probe-title {
+            font-weight: bold;
+            color: #00ff88;
+            font-size: 17px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 3px;
+        }
+        .probe-panel .probe-pos {
+            color: #666;
+            font-size: 15px;
+            margin-bottom: 2px;
+        }
+        .probe-panel .probe-divider {
+            border-top: 1px solid #333;
+            margin: 3px 0;
+        }
+        .probe-panel .probe-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            line-height: 1.6;
+        }
+        .probe-panel .probe-label {
+            color: #888;
+            font-weight: bold;
+        }
+        .probe-panel .probe-val {
+            color: #8cf;
+            text-align: right;
+        }
     </style>
 </head>
 <body>
 <div id="loading">Loading...</div>
-<div id="info">Click to lock. WASD+Space/Shift move. Right-click: add objects. Mag box: aim+click corner1, drag to corner2, release. 1:freeze 2:forces 3:field 4:potential 5:color 6:contours 7:velocity Q:cancel ghost E:cancel box</div>
+<div id="info">Click to lock. WASD+Space/Shift move. Right-click: add objects. Mag box: aim+click corner1, drag to corner2, release. 1:freeze 2:forces 3:field 4:potential 5:color 6:contours 7:velocity Q:cancel/grab</div>
 
 <div id="chargeLabel" style="position:absolute;bottom:70px;left:50%;transform:translateX(-50%);color:#ddd;font-family:Arial,sans-serif;font-size:12px;display:none;z-index:500">Velocity</div>
 <div id="chargeMeter"><div id="chargeMeterFill"></div></div>
 
 <div id="crosshair"></div>
+<div id="objectInfo">
+    <div class="oi-name" id="oiName"></div>
+    <div id="oiRows"></div>
+</div>
 
 <div class="ctx-menu" id="ctxMenu">
     <div class="ctx-menu-item">

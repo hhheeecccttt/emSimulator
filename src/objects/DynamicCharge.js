@@ -234,3 +234,27 @@ export class DynamicCharge extends SimObject {
     this.trailLine.geometry.setDrawRange(0, count);
   }
 }
+
+// Biot-Savart B-field from a moving point charge: B = μ₀/4π · q · v × r̂ / r²
+// Using a scaled constant tuned for the simulation's arbitrary units
+const BIOT_SAVART = 0.5;
+
+const _bsDir = new THREE.Vector3();
+const _bsR = new THREE.Vector3();
+
+DynamicCharge.prototype.getField = function (point) {
+  const vel = this.velocity;
+  if (vel.lengthSq() < 1e-12) return null;
+  _bsR.subVectors(point, this.position);
+  const rSq = _bsR.lengthSq();
+  if (rSq < 0.01) return null;
+  const r = Math.sqrt(rSq);
+  // v × r̂
+  _bsDir.crossVectors(vel, _bsR).divideScalar(r);
+  const crossMag = _bsDir.length();
+  if (crossMag < 1e-12) return null;
+  const q = this.constructor.chargeType === "positive" ? 1 : -1;
+  // B = BIOT_SAVART · q · v × r̂ / r²
+  const bMag = BIOT_SAVART * q * crossMag / rSq;
+  return _bsDir.clone().normalize().multiplyScalar(bMag);
+};

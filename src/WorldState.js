@@ -1,1 +1,1 @@
-export const world = { objects: [] };
+export const world = { objects: [], camera: null };
