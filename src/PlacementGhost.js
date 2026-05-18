@@ -2,11 +2,13 @@ import * as THREE from 'three';
 import { PLACEMENT_DISTANCE } from './constants.js';
 import { getType } from './ObjectRegistry.js';
 
+// Three-state click-hold mechanic: IDLE -> HOLDING (0.1s buffer) -> CHARGING (up to 2s)
 const State = { IDLE: 0, HOLDING: 1, CHARGING: 2 };
 const HOLD_DELAY = 0.1;
 const MAX_CHARGE_TIME = 2;
 const MAX_LAUNCH_SPEED = 5;
 
+// Module-level state — only one ghost at a time
 let placementGhost = null;
 let scene = null;
 let camera = null;
@@ -20,10 +22,11 @@ function showMeter() { meterEl.style.display = 'block'; labelEl.style.display = 
 function hideMeter() { meterEl.style.display = 'none'; labelEl.style.display = 'none'; }
 
 export function initGhostSystem(sceneRef, cameraRef) {
-    scene = sceneRef;
-    camera = cameraRef;
+  scene = sceneRef;
+  camera = cameraRef;
 }
 
+// Create a ghost mesh and start following the camera
 export function startPlacement(typeId) {
     cancelPlacement();
     const Cls = getType(typeId);
@@ -33,6 +36,7 @@ export function startPlacement(typeId) {
     updateGhostPosition();
 }
 
+// Keep the ghost at a fixed distance in front of the camera
 export function updateGhostPosition() {
     if (!placementGhost || !camera) return;
     const dir = new THREE.Vector3();
@@ -85,6 +89,7 @@ export function getChargeLevel() {
     return Math.min((performance.now() - phaseStartTime) / (MAX_CHARGE_TIME * 1000), 1);
 }
 
+// For static objects: instant placement. For dynamic: start the hold-charge sequence
 export function onPlacementClick() {
     if (!placementGhost) return null;
     const Cls = getType(placementGhost.userData.typeId);
@@ -96,6 +101,7 @@ export function onPlacementClick() {
     return null;
 }
 
+// After the hold delay, switch to charging and show the meter
 export function tickCharge() {
     if (state !== State.HOLDING) return;
     if ((performance.now() - phaseStartTime) / 1000 < HOLD_DELAY) return;
@@ -104,6 +110,8 @@ export function tickCharge() {
     showMeter();
 }
 
+// On release: if still in holding (quick tap), place with zero velocity.
+// If charging, launch with speed proportional to charge time.
 export function onPlacementRelease() {
     if (state === State.IDLE || !placementGhost) return null;
 

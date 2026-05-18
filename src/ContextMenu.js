@@ -21,6 +21,7 @@ export function closeMenu() {
     highlight(-1);
 }
 
+// Populate the submenu from the object registry
 function populateMenu() {
     const submenu = document.getElementById('addSubmenu');
     submenu.innerHTML = '';
@@ -34,8 +35,10 @@ function populateMenu() {
 }
 
 function setupEventListeners() {
+    // Suppress the browser's native context menu
     document.addEventListener('contextmenu', e => e.preventDefault());
 
+    // Right-click opens the menu — temporarily unlock pointer so the cursor is visible
     document.addEventListener('mousedown', e => {
         if (e.button !== 2) return;
         wasPointerLocked = !!document.pointerLockElement;
@@ -63,6 +66,7 @@ function setupEventListeners() {
 
     ctxMenu.addEventListener('mousemove', () => { if (highlightedIdx() >= 0) highlight(-1); });
 
+    // Keyboard navigation within the menu
     document.addEventListener('keydown', e => {
         if (ctxMenu.style.display === 'none') return;
         const items = topItems();
@@ -81,12 +85,14 @@ function setupEventListeners() {
         }
     });
 
+    // Left-click release = launch a charged dynamic particle
     document.addEventListener('mouseup', e => {
         if (e.button !== 0) return;
         const obj = onPlacementRelease();
         if (obj && onObjectPlaced) onObjectPlaced(obj);
     });
 
+    // Close the menu if you click outside of it
     document.addEventListener('click', e => {
         if (ctxMenu.style.display !== 'none' && !ctxMenu.contains(e.target)) {
             closeMenu();

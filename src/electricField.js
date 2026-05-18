@@ -5,12 +5,14 @@ const GRID_SIZE = 30;
 const HALF_SPAN = 15;
 const GRID_Y = 0.5;
 
+// A 30x30 grid of arrows at mid-height showing the net electric field from static charges
 export class ElectricField {
     constructor(scene) {
         this.arrows = [];
         this.enabled = true;
         this.tempDir = new THREE.Vector3();
         this.field = new THREE.Vector3();
+        // Semi-transparent plane under the arrows so the grid is visible
         const planeGeo = new THREE.PlaneGeometry(HALF_SPAN * 2, HALF_SPAN * 2);
         const planeMat = new THREE.MeshBasicMaterial({
             color: 0x333333, transparent: true, opacity: 0.25, side: THREE.DoubleSide, depthWrite: false
@@ -47,6 +49,7 @@ export class ElectricField {
             return;
         }
 
+        // For each grid point, sum E contributions from all static charges
         for (const arrow of this.arrows) {
             const origin = arrow.position;
             this.field.set(0, 0, 0);

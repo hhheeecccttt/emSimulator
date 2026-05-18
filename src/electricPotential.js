@@ -1,6 +1,6 @@
-import * as THREE from 'three';
-import { world } from './WorldState.js';
-import { isoLines } from './libs/marchingsquares-esm.js';
+import * as THREE from "three";
+import { world } from "./WorldState.js";
+import { isoLines } from "./libs/marchingsquares-esm.js";
 
 const WIDTH = 30;
 const LENGTH = 30;
@@ -10,19 +10,24 @@ const CONTOUR_LEVELS = [-4, -3, -2, -1, -0.5, 0, 0.5, 1, 2, 3, 4];
 
 export class ElectricPotential {
   constructor(scene) {
-    const geometry = new THREE.PlaneGeometry(WIDTH, LENGTH, SUBDIVISIONS, SUBDIVISIONS);
+    const geometry = new THREE.PlaneGeometry(
+      WIDTH,
+      LENGTH,
+      SUBDIVISIONS,
+      SUBDIVISIONS,
+    );
 
     const colors = new Float32Array(geometry.attributes.position.count * 3);
-    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
 
     const surfaceMat = new THREE.MeshStandardMaterial({
       vertexColors: true,
       //side: THREE.DoubleSide,
       transparent: true,
       opacity: 0.6,
-      depthWrite: false
+      depthWrite: false,
     });
-    
+
     this.surface = new THREE.Mesh(geometry, surfaceMat);
     this.surface.rotation.x = -Math.PI / 2;
     this.surface.position.y = 0.52;
@@ -31,7 +36,7 @@ export class ElectricPotential {
     const wireMat = new THREE.MeshBasicMaterial({
       color: 0x222222,
       wireframe: true,
-      side: THREE.DoubleSide
+      side: THREE.DoubleSide,
     });
     this.wireframe = new THREE.Mesh(geometry, wireMat);
     this.wireframe.rotation.x = -Math.PI / 2;
@@ -39,8 +44,8 @@ export class ElectricPotential {
     scene.add(this.wireframe);
 
     const contourMat = new THREE.MeshBasicMaterial({
-        color: 0x000000,
-        side: THREE.DoubleSide
+      color: 0x000000,
+      side: THREE.DoubleSide,
     });
     this.contours = new THREE.Mesh(new THREE.BufferGeometry(), contourMat);
     this.contours.visible = false;
@@ -108,7 +113,8 @@ export class ElectricPotential {
       const z = -ly;
 
       let potential = 0;
-      const vx = x, vz = z;
+      const vx = x,
+        vz = z;
 
       for (const obj of world.objects) {
         if (!obj.constructor.isStatic) continue;
@@ -117,7 +123,7 @@ export class ElectricPotential {
         const distSq = dx * dx + dz * dz;
         if (distSq < 0.0001) continue;
 
-        const sign = obj.constructor.chargeType === 'positive' ? 1 : -1;
+        const sign = obj.constructor.chargeType === "positive" ? 1 : -1;
         potential += sign / Math.sqrt(distSq);
       }
 
@@ -178,16 +184,24 @@ export class ElectricPotential {
           const dz = wz1 - wz0;
           const len = Math.sqrt(dx * dx + dz * dz);
           if (len < 1e-10) continue;
-          const nx = -dz / len * W;
-          const nz = dx / len * W;
+          const nx = (-dz / len) * W;
+          const nz = (dx / len) * W;
 
           const y = 0.52 + level;
           const idx = positions.length / 3;
           positions.push(
-            wx0 + nx, y, wz0 + nz,
-            wx0 - nx, y, wz0 - nz,
-            wx1 + nx, y, wz1 + nz,
-            wx1 - nx, y, wz1 - nz
+            wx0 + nx,
+            y,
+            wz0 + nz,
+            wx0 - nx,
+            y,
+            wz0 - nz,
+            wx1 + nx,
+            y,
+            wz1 + nz,
+            wx1 - nx,
+            y,
+            wz1 - nz,
           );
           indices.push(idx, idx + 1, idx + 2, idx + 1, idx + 3, idx + 2);
         }
@@ -195,7 +209,10 @@ export class ElectricPotential {
     }
 
     const geo = this.contours.geometry;
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geo.setAttribute(
+      "position",
+      new THREE.Float32BufferAttribute(positions, 3),
+    );
     geo.setIndex(indices);
     geo.computeBoundingSphere();
   }
